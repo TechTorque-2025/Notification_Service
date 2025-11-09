@@ -1,11 +1,13 @@
 package com.techtorque.notification_service.controller;
 
+import com.techtorque.notification_service.dto.request.CreateNotificationRequest;
 import com.techtorque.notification_service.dto.request.MarkAsReadRequest;
 import com.techtorque.notification_service.dto.request.SubscribeRequest;
 import com.techtorque.notification_service.dto.request.UnsubscribeRequest;
 import com.techtorque.notification_service.dto.response.ApiResponse;
 import com.techtorque.notification_service.dto.response.NotificationResponse;
 import com.techtorque.notification_service.dto.response.SubscriptionResponse;
+import com.techtorque.notification_service.entity.Notification;
 import com.techtorque.notification_service.entity.Subscription;
 import com.techtorque.notification_service.service.NotificationService;
 import com.techtorque.notification_service.service.SubscriptionService;

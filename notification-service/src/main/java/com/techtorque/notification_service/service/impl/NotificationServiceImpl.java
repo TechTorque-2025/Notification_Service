@@ -1,11 +1,12 @@
 package com.techtorque.notification_service.service.impl;
 
+import com.techtorque.notification_service.controller.WebSocketNotificationController;
 import com.techtorque.notification_service.dto.response.NotificationResponse;
 import com.techtorque.notification_service.entity.Notification;
 import com.techtorque.notification_service.repository.NotificationRepository;
 import com.techtorque.notification_service.service.NotificationService;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -14,11 +15,18 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 @Service
-@RequiredArgsConstructor
 @Slf4j
 public class NotificationServiceImpl implements NotificationService {
 
     private final NotificationRepository notificationRepository;
+    private final WebSocketNotificationController webSocketController;
+
+    // Use @Lazy to avoid circular dependency issues
+    public NotificationServiceImpl(NotificationRepository notificationRepository,
+                                   @Lazy WebSocketNotificationController webSocketController) {
+        this.notificationRepository = notificationRepository;
+        this.webSocketController = webSocketController;
+    }
 
     @Override
     @Transactional(readOnly = true)
@@ -41,22 +49,27 @@ public class NotificationServiceImpl implements NotificationService {
     @Transactional
     public NotificationResponse markAsRead(String notificationId, String userId, Boolean read) {
         log.info("Marking notification {} as read: {} for user: {}", notificationId, read, userId);
-        
+
         Notification notification = notificationRepository.findById(notificationId)
                 .orElseThrow(() -> new RuntimeException("Notification not found"));
-        
+
         if (!notification.getUserId().equals(userId)) {
             throw new RuntimeException("Unauthorized access to notification");
         }
-        
+
         notification.setRead(read);
         if (read) {
             notification.setReadAt(LocalDateTime.now());
         } else {
             notification.setReadAt(null);
         }
-        
+
         Notification updated = notificationRepository.save(notification);
+
+        // Send real-time unread count update via WebSocket
+        Long unreadCount = getUnreadCount(userId);
+        webSocketController.sendUnreadCountUpdate(userId, unreadCount);
+
         return convertToResponse(updated);
     }
 
@@ -78,10 +91,10 @@ public class NotificationServiceImpl implements NotificationService {
 
     @Override
     @Transactional
-    public NotificationResponse createNotification(String userId, Notification.NotificationType type, 
+    public NotificationResponse createNotification(String userId, Notification.NotificationType type,
                                                    String message, String details) {
         log.info("Creating notification for user: {}, type: {}", userId, type);
-        
+
         Notification notification = Notification.builder()
                 .userId(userId)
                 .type(type)
@@ -91,9 +104,18 @@ public class NotificationServiceImpl implements NotificationService {
                 .deleted(false)
                 .expiresAt(LocalDateTime.now().plusDays(30))
                 .build();
-        
+
         Notification saved = notificationRepository.save(notification);
-        return convertToResponse(saved);
+        NotificationResponse response = convertToResponse(saved);
+
+        // Send real-time notification via WebSocket
+        webSocketController.sendNotificationToUser(userId, response);
+
+        // Send updated unread count via WebSocket
+        Long unreadCount = getUnreadCount(userId);
+        webSocketController.sendUnreadCountUpdate(userId, unreadCount);
+
+        return response;
     }
 
     @Override

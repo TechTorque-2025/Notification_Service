@@ -25,7 +25,9 @@ public class SecurityConfig {
         "/actuator/**",
         "/health",
         "/favicon.ico",
-        "/error"
+        "/error",
+        "/ws/**",  // Allow WebSocket endpoints
+        "/api/v1/notifications/**"  // Allow notification REST API endpoints
     };
 
     @Bean
